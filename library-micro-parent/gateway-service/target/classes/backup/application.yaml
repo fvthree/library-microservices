@@ -1,0 +1,22 @@
+server:
+  port: 9090
+
+spring:
+  application:
+      name: API-GATEWAY
+  config:
+    import: configserver:http://localhost:9296
+  cloud:
+    gateway:
+      routes:
+        - id: BOOK-SERVICE
+          uri: lb:BOOK-SERVICE
+          predicates:
+            - Path=/books
+            - Method=GET,POST,PUT,DELETE
+            - Header=Authorization, Bearer (.*)
+          filters:
+            - AuthHeaderFilter
+
+token:
+  secret: hfgry463hf746hf573ydh475fhy5739

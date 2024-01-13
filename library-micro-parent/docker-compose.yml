@@ -1,0 +1,140 @@
+version: '3.8'
+services:
+
+  postgres:
+    image: postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password12
+      PGDATA: /data/postgres
+    volumes:
+      - /data/postgres:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    networks:
+      - postgres
+
+  pgadmin:
+    container_name: pgadmin-container
+    image: dpage/pgadmin4:latest
+    environment:
+      PGADMIN_DEFAULT_EMAIL: pgadmin4@pgadmin.org
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    volumes:
+      - pgadmin:/var/lib/pgadmin
+    ports:
+      - "5050:80"
+    restart: unless-stopped
+    depends_on:
+      - postgres
+    networks:
+      - postgres
+
+  discovery:
+    image: 'fvthree/discovery-service:latest'
+    container_name: discovery
+    ports:
+      - '8761:8761'
+    networks:
+      - postgres
+
+  config-server:
+    image: 'fvthree/config-service:latest'
+    container_name: config
+    ports:
+      - '9296:9296'
+    environment:
+      - EUREKA_SERVER_ADDRESS=http://discovery:8761/eureka
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://config-server:9296/actuator/health" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    depends_on:
+      - discovery
+    networks:
+      - postgres
+
+  gateway:
+    image: 'fvthree/gateway-service:latest'
+    container_name: gateway
+    ports:
+      - '9090:9090'
+    environment:
+      - EUREKA_SERVER_ADDRESS=http://discovery:8761/eureka
+      - CONFIG_SERVER_URL=config-server
+    depends_on:
+      config-server:
+        condition: service_healthy
+    networks:
+      - postgres
+
+  auth-service:
+    image: 'fvthree/auth-service:latest'
+    container_name: auth-service
+    ports:
+      - '8084:8084'
+    environment:
+      - EUREKA_SERVER_ADDRESS=http://discovery:8761/eureka
+      - CONFIG_SERVER_URL=config-server
+      - POSTGRES_DB=host.docker.internal
+    depends_on:
+      config-server:
+        condition: service_healthy
+    networks:
+      - postgres
+
+  book-service:
+    image: 'fvthree/book-service:latest'
+    container_name: book-service
+    ports:
+      - '8081:8081'
+    environment:
+      - EUREKA_SERVER_ADDRESS=http://discovery:8761/eureka
+      - CONFIG_SERVER_URL=config-server
+      - POSTGRES_DB=host.docker.internal
+    depends_on:
+      config-server:
+        condition: service_healthy
+    networks:
+      - postgres
+
+  review-service:
+    image: 'fvthree/review-service:latest'
+    container_name: review-service
+    ports:
+      - '8083:8083'
+    environment:
+      - EUREKA_SERVER_ADDRESS=http://discovery:8761/eureka
+      - CONFIG_SERVER_URL=config-server
+      - POSTGRES_DB=host.docker.internal
+    depends_on:
+      config-server:
+        condition: service_healthy
+    networks:
+      - postgres
+
+  message-service:
+    image: 'fvthree/message-service:latest'
+    container_name: message-service
+    ports:
+      - '8085:8085'
+    environment:
+      - EUREKA_SERVER_ADDRESS=http://discovery:8761/eureka
+      - CONFIG_SERVER_URL=config-server
+      - POSTGRES_DB=host.docker.internal
+    depends_on:
+      config-server:
+        condition: service_healthy
+    networks:
+      - postgres
+
+networks:
+  postgres:
+    driver: bridge
+
+volumes:
+  postgres:
+  pgadmin:
